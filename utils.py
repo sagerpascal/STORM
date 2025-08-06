@@ -2,12 +2,11 @@ import torch
 import os
 import numpy as np
 import random
-from tensorboardX import SummaryWriter
-from einops import repeat
 from contextlib import contextmanager
 import time
 import yacs
 from yacs.config import CfgNode as CN
+import wandb
 
 
 def seed_np_torch(seed=20010105):
@@ -22,24 +21,34 @@ def seed_np_torch(seed=20010105):
     torch.backends.cudnn.benchmark = False
 
 
-class Logger():
-    def __init__(self, path) -> None:
-        self.writer = SummaryWriter(logdir=path, flush_secs=1)
+class Logger:
+    def __init__(self, logger_args):
+        run = wandb.init(**logger_args)
         self.tag_step = {}
+        self._run = run
+
+    @property
+    def run_name(self):
+        return self._run.name
 
     def log(self, tag, value):
-        if tag not in self.tag_step:
-            self.tag_step[tag] = 0
-        else:
-            self.tag_step[tag] += 1
         if "video" in tag:
-            self.writer.add_video(tag, value, self.tag_step[tag], fps=15)
+            # Ensure value is a numpy array of shape [T, C, H, W], normalized to [0, 255], dtype=uint8
+            if isinstance(value, torch.Tensor):
+                value = value.cpu().numpy()
+            wandb.log({tag: wandb.Video(value, fps=15, format="mp4")})
         elif "images" in tag:
-            self.writer.add_images(tag, value, self.tag_step[tag])
+            # value is expected to be a tensor or numpy array of shape [N, C, H, W]
+            images = [wandb.Image(img) for img in value]
+            wandb.log({tag: images})
         elif "hist" in tag:
-            self.writer.add_histogram(tag, value, self.tag_step[tag])
+            # value can be a list or numpy array
+            wandb.log({tag: wandb.Histogram(value)})
         else:
-            self.writer.add_scalar(tag, value, self.tag_step[tag])
+            wandb.log({tag: value})
+
+    def log_dict(self, dict):
+        wandb.log(dict)
 
 
 class EMAScalar():

@@ -1,6 +1,5 @@
 import gymnasium
 import argparse
-from tensorboardX import SummaryWriter
 import cv2
 import numpy as np
 from einops import rearrange
@@ -16,6 +15,7 @@ import json
 import shutil
 import pickle
 import os
+import ale_py
 
 from utils import seed_np_torch, Logger, load_config
 from replay_buffer import ReplayBuffer
@@ -29,6 +29,8 @@ def build_single_env(env_name, image_size, seed):
     env = gymnasium.make(env_name, full_action_space=False, render_mode="rgb_array", frameskip=1)
     env = env_wrapper.SeedEnvWrapper(env, seed=seed)
     env = env_wrapper.MaxLast2FrameSkipWrapper(env, skip=4)
+    if isinstance(image_size, int):
+        image_size = (image_size, image_size)
     env = gymnasium.wrappers.ResizeObservation(env, shape=image_size)
     env = env_wrapper.LifeLossInfo(env)
     return env
@@ -222,7 +224,7 @@ if __name__ == "__main__":
     parser.add_argument("-seed", type=int, required=True)
     parser.add_argument("-config_path", type=str, required=True)
     parser.add_argument("-env_name", type=str, required=True)
-    parser.add_argument("-trajectory_path", type=str, required=True)
+    parser.add_argument("-trajectory_path", type=str, required=False)
     args = parser.parse_args()
     conf = load_config(args.config_path)
     print(colorama.Fore.RED + str(args) + colorama.Style.RESET_ALL)
@@ -230,8 +232,12 @@ if __name__ == "__main__":
     # set seed
     seed_np_torch(seed=args.seed)
     # tensorboard writer
-    logger = Logger(path=f"runs/{args.n}")
+    # logger = Logger(path=f"runs/{args.n}")
+    run_name = f"{args.env_name}_seed{args.seed}_{args.n}"
+    logger = Logger(logger_args={'entity': "world-model-zhaw2", 'project': "STORM-ORIG-BASELINES", 'name': run_name})
     # copy config file
+    if not os.path.exists(f"runs/{args.n}"):
+        os.makedirs(f"runs/{args.n}")
     shutil.copy(args.config_path, f"runs/{args.n}/config.yaml")
 
     # distinguish between tasks, other debugging options are removed for simplicity
