@@ -371,7 +371,9 @@ class WorldModel(nn.Module):
                 obs_hat_list.append(last_obs_hat[::imagine_batch_size//16])  # uniform sample vec_env
 
         if log_video:
-            logger.log("Imagine/predict_video", torch.clamp(torch.cat(obs_hat_list, dim=1), 0, 1).cpu().float().detach().numpy())
+            video = torch.clamp(torch.cat(obs_hat_list, dim=1), 0, 1)  # [B, C, H, W], B=T
+            video = (video * 255).to(torch.uint8).cpu().detach().numpy()  # [T, C, H, W]
+            logger.log("Imagine/predict_video", video)
 
         return torch.cat([self.latent_buffer, self.hidden_buffer], dim=-1), self.action_buffer, self.reward_hat_buffer, self.termination_hat_buffer
 
